@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Cineville Douban Helper",
+  "version": "1.0",
+  "description": "在 Cineville 电影排片表中自动显示豆瓣评分和中文片名。",
+  "permissions": [
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*.cineville.de/*",
+    "*://*.douban.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.cineville.de/*"],
+      "js": ["content.js"],
+      "css": ["style.css"]
+    }
+  ]
+}
