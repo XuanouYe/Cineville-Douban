@@ -1,0 +1,30 @@
+.douban-cineville-btn {
+    display: inline-block;
+    margin-left: 12px;
+    padding: 2px 8px;
+    background-color: #007722; /* 标志性豆瓣绿 */
+    color: white !important;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    text-decoration: none !important;
+    vertical-align: middle;
+    transition: background-color 0.2s;
+    line-height: 1.5;
+}
+
+.douban-cineville-btn:hover {
+    background-color: #005511;
+}
+
+.douban-rating {
+    margin-left: 4px;
+    color: #ffd700; /* 星星评分颜色 */
+}
+
+.douban-cn-title {
+    font-size: 0.9em;
+    color: #007722;
+    margin-left: 6px;
+    font-weight: bold;
+}
