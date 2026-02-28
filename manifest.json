@@ -1,21 +1,31 @@
 {
   "manifest_version": 3,
   "name": "Cineville Douban Helper",
-  "version": "1.0",
-  "description": "在 Cineville 电影排片表中自动显示豆瓣评分和中文片名。",
+  "version": "1.6",
+  "description": "通过 IMDb 自动翻译片名，在 Cineville 电影排片表中显示豆瓣评分、中文名及导演信息，支持直达电影主页。",
   "permissions": [
     "scripting"
   ],
   "host_permissions": [
     "*://*.cineville.de/*",
-    "*://*.douban.com/*"
+    "*://*.cineville.nl/*",
+    "*://*.cinevillepass.be/*",
+    "*://*.cinevillebio.se/*",
+    "*://*.douban.com/*",
+    "*://*.media-imdb.com/*",
+    "*://*.imdb.com/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["*://*.cineville.de/*"],
+      "matches": [
+        "*://*.cineville.de/*", 
+        "*://*.cineville.nl/*", 
+        "*://*.cinevillepass.be/*", 
+        "*://*.cinevillebio.se/*"
+      ],
       "js": ["content.js"],
       "css": ["style.css"]
     }

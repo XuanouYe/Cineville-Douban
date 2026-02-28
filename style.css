@@ -2,7 +2,7 @@
     display: inline-block;
     margin-left: 12px;
     padding: 2px 8px;
-    background-color: #007722; /* 标志性豆瓣绿 */
+    background-color: #007722; 
     color: white !important;
     border-radius: 4px;
     font-size: 12px;
@@ -11,6 +11,9 @@
     vertical-align: middle;
     transition: background-color 0.2s;
     line-height: 1.5;
+    position: relative;
+    z-index: 100;
+    pointer-events: auto; 
 }
 
 .douban-cineville-btn:hover {
@@ -19,12 +22,46 @@
 
 .douban-rating {
     margin-left: 4px;
-    color: #ffd700; /* 星星评分颜色 */
+    color: #ffd700; 
 }
 
 .douban-cn-title {
     font-size: 0.9em;
     color: #007722;
-    margin-left: 6px;
+    margin-left: 8px;
+    font-weight: normal;
+    position: relative;
+    z-index: 100;
+}
+
+.letterboxd-cineville-btn {
+    display: inline-block;
+    margin-left: 8px; 
+    padding: 2px 8px;
+    background-color: #2c3440; 
+    color: #ffffff !important;
+    border-radius: 4px;
+    font-size: 12px;
     font-weight: bold;
+    text-decoration: none !important;
+    vertical-align: middle;
+    transition: all 0.2s ease;
+    line-height: 1.5;
+    position: relative;
+    z-index: 100;
+    pointer-events: auto; 
+}
+
+.letterboxd-cineville-btn:hover {
+    background-color: #00e054; 
+    color: #14181c !important; 
+}
+
+.douban-extra-info {
+    font-size: 0.85em;
+    color: #888888;
+    margin-left: 4px;
+    font-weight: normal;
+    position: relative;
+    z-index: 100;
 }
