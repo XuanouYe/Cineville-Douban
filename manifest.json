@@ -1,13 +1,17 @@
 {
   "manifest_version": 3,
   "name": "Cineville Douban Helper",
-  "version": "1.7",
-  "description": "通过 IMDb 自动翻译片名，在 Cineville 电影排片表中显示豆瓣评分、中文名及导演信息，支持直达电影主页。",
+  "version": "1.9",
+  "description": "通过 IMDb 自动翻译片名，在排片网站中显示豆瓣评分、中文名及导演信息，支持直达电影主页。",
+  "permissions": [
+    "storage"
+  ],
   "host_permissions": [
     "*://*.cineville.de/*",
     "*://*.cineville.nl/*",
     "*://*.cinevillepass.be/*",
     "*://*.cinevillebio.se/*",
+    "*://*.18tickets.it/*",
     "*://*.douban.com/*",
     "*://*.media-imdb.com/*",
     "*://*.imdb.com/*"
@@ -21,7 +25,8 @@
         "*://*.cineville.de/*", 
         "*://*.cineville.nl/*", 
         "*://*.cinevillepass.be/*", 
-        "*://*.cinevillebio.se/*"
+        "*://*.cinevillebio.se/*",
+        "*://*.18tickets.it/*"
       ],
       "js": ["content.js"],
       "css": ["style.css"]

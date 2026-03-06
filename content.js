@@ -1,8 +1,8 @@
 function addLinks() {
-    // 采用广泛的选择器覆盖多国语言变体，并通过 :not() 严格剔除自己注入的按钮，防止死循环
     const possibleSelectors = [
         'a[href*="/films/"]:not(.douban-cineville-btn):not(.letterboxd-cineville-btn)', 
         'a[href*="/filme/"]:not(.douban-cineville-btn):not(.letterboxd-cineville-btn)', 
+        'a[href*="/filmer/"]:not(.douban-cineville-btn):not(.letterboxd-cineville-btn)', 
         'a[href*="/film/"]:not(.douban-cineville-btn):not(.letterboxd-cineville-btn)',
         'a[href*="/movie/"]:not(.douban-cineville-btn):not(.letterboxd-cineville-btn)',
         '.agenda-item h3 a:not(.douban-cineville-btn):not(.letterboxd-cineville-btn)', 
@@ -15,35 +15,52 @@ function addLinks() {
     const safeLinks = document.querySelectorAll(possibleSelectors);
     
     safeLinks.forEach(link => {
-        // 二重防御：如果抓到的还是我们自己创建的按钮，直接跳过
-        if (link.classList.contains('douban-cineville-btn') || link.classList.contains('letterboxd-cineville-btn')) {
-            return;
-        }
-
-        // 如果该节点已经被注入过信息，跳过
+        // 二次防御：如果你本身就是我生成的按钮，跳过
+        if (link.classList.contains('douban-cineville-btn') || link.classList.contains('letterboxd-cineville-btn')) return;
+        
+        // 防重复注入标签
         if (link.dataset.injected === "true") return;
         
-        const movieTitle = link.innerText.trim();
+        // 意大利网站常常前面有乱七八糟的播放图标和空格，清洗掉
+        let movieTitle = link.innerText.trim().replace(/^[\uf000-\uf8ff\u25b6\u25b7\s]+/, '');
         if (!movieTitle) return;
 
-        // 屏蔽掉包裹着图片(如海报封面)的纯链接
+        // 屏蔽掉包含图片的链接（海报封面等）
         if (link.querySelector('img') || link.querySelector('svg')) return;
-        
-        // 判断它是不是排片表里的标题，避免污染顶部导航栏等无辜区域
-        const parentTag = link.parentElement ? link.parentElement.tagName.toLowerCase() : '';
-        const isHeading = ['h1', 'h2', 'h3', 'h4', 'h5'].includes(parentTag);
-        const hasTitleClass = link.classList.contains('title') || (link.parentElement && link.parentElement.classList.contains('title'));
-        const isAgendaPage = window.location.href.match(/filmagenda|horaires|programm|showtimes|films/i);
-        
-        if (!isHeading && !hasTitleClass && !isAgendaPage) return;
 
-        // 立即锁住该节点，彻底防止重复执行
+        // 【通用防误伤】排片表里时间段或者影厅名称不能送去搜索
+        if (/^\d{2}:\d{2}/.test(movieTitle) || movieTitle.toLowerCase().includes('sala')) return;
+
+        // 清洗纯净片名用于搜索
+        const cleanTitle = movieTitle.split('\n')[0].replace(/\s*-\s*V\.\s*O\.$/i, '').replace(/\(ED\..*?\)/i, '').trim();
+
+        // 屏蔽查看全部排片的无用导航按钮
+        if (cleanTitle.toLowerCase().includes('programmazione') || cleanTitle.toLowerCase().includes('completa')) return;
+
+        // --------------------------------------------------------
+        // 隔离策略：根据网站结构决定严格还是宽松的标题判定
+        // --------------------------------------------------------
+        const is18Tickets = window.location.href.includes('18tickets.it');
+        
+        if (is18Tickets) {
+            // 针对 18tickets：必须严格在 h1~h6 标签内或者是 title 类，防误伤纯文字介绍
+            const parentTag = link.parentElement ? link.parentElement.tagName.toLowerCase() : '';
+            const isHeadingParent = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(parentTag);
+            const hasHeadingChild = link.querySelector('h1, h2, h3, h4, h5, h6') !== null;
+            const hasTitleClass = link.classList.contains('title') || (link.parentElement && link.parentElement.classList.contains('title'));
+            
+            if (!isHeadingParent && !hasHeadingChild && !hasTitleClass) return;
+        } else {
+            // 针对 Cineville 站点：只要我们在电影排期或首页就放行（因为它们的 DOM 很随机）
+            const isAgendaPage = window.location.href.match(/filmagenda|horaires|programm|showtimes|films|filmer|se/i) || 
+                                 window.location.pathname === '/' || window.location.pathname === '/sv-SE/';
+            if (!isAgendaPage) return;
+        }
+
+        // 加锁，彻底防止 SPA 重复执行死循环
         link.dataset.injected = "true";
-        
-        // 过滤掉原网页中的换行或者多余标签，只取第一行文字
-        const cleanTitle = movieTitle.split('\n')[0].trim();
 
-        // 1. 豆瓣按钮 (默认片名搜索兜底)
+        // 生成豆瓣按钮 (带片名兜底)
         const doubanBtn = document.createElement('a');
         doubanBtn.href = `https://search.douban.com/movie/subject_search?search_text=${encodeURIComponent(cleanTitle)}`;
         doubanBtn.target = "_blank";
@@ -51,7 +68,7 @@ function addLinks() {
         doubanBtn.innerText = "豆瓣";
         doubanBtn.addEventListener('click', (e) => e.stopPropagation());
 
-        // 2. Letterboxd 按钮 (保留片名搜索)
+        // 生成 Letterboxd 按钮
         const letterboxdBtn = document.createElement('a');
         letterboxdBtn.href = `https://letterboxd.com/search/${encodeURIComponent(cleanTitle)}/`;
         letterboxdBtn.target = "_blank";
@@ -59,7 +76,7 @@ function addLinks() {
         letterboxdBtn.innerText = "LB";
         letterboxdBtn.addEventListener('click', (e) => e.stopPropagation());
 
-        // 3. IMDb 按钮 (默认片名搜索兜底)
+        // 生成 IMDb 按钮 (带片名兜底)
         const imdbBtn = document.createElement('a');
         imdbBtn.href = `https://www.imdb.com/find?q=${encodeURIComponent(cleanTitle)}`;
         imdbBtn.target = "_blank";
@@ -70,35 +87,33 @@ function addLinks() {
         imdbBtn.innerText = "IMDb";
         imdbBtn.addEventListener('click', (e) => e.stopPropagation());
 
-        // 先注入基础按钮
+        // 为了意大利站的美观加个微小的间距
+        doubanBtn.style.marginLeft = "8px";
         link.parentNode.appendChild(doubanBtn);
         link.parentNode.appendChild(letterboxdBtn);
         link.parentNode.appendChild(imdbBtn);
         
-        // -------------------------------------------------------------
-        // 使用 Manifest V3 async/await 方式通信，等待后台爬取完毕
-        // -------------------------------------------------------------
+        // --------------------------------------------------------
+        // Manifest V3 标准通信 + 动态替换链接
+        // --------------------------------------------------------
         (async () => {
             try {
                 const response = await chrome.runtime.sendMessage({ type: "FETCH_INFO", title: cleanTitle });
-                
                 if (!response || !response.success) return;
 
-                // 🌟 核心优化：动态替换按钮链接 🌟
+                // 回填：如果有准确的关联信息，替换为直达详情页
                 if (response.doubanLink) {
-                    // 如果找到了明确的豆瓣主页，直接跳过去
                     doubanBtn.href = response.doubanLink;
-                } else if (response.ttId) {
-                    // 如果没找到主页，但有 ttId，改用 ttId 搜豆瓣
+                } else if (response.ttId && !response.doubanBlocked) {
+                    // 如果有豆瓣阻断标记，就不替换成 ttId，保持片名兜底
                     doubanBtn.href = `https://search.douban.com/movie/subject_search?search_text=${response.ttId}`;
                 }
 
                 if (response.ttId) {
-                    // 将 IMDb 按钮从模糊搜索替换为直达详情页
                     imdbBtn.href = `https://www.imdb.com/title/${response.ttId}/`;
                 }
 
-                // 回填：豆瓣评分
+                // 渲染：如果有评分就打出星星
                 if (response.rating && response.rating !== "无") {
                     const ratingSpan = document.createElement('span');
                     ratingSpan.className = "douban-rating";
@@ -106,7 +121,7 @@ function addLinks() {
                     doubanBtn.appendChild(ratingSpan);
                 }
 
-                // 回填：中文名 · 英文名
+                // 渲染：中英文混排标题
                 const titleSpan = document.createElement('span');
                 titleSpan.className = "douban-cn-title";
                 
@@ -124,7 +139,7 @@ function addLinks() {
                     link.parentNode.appendChild(titleSpan);
                 }
 
-                // 回填：年份 · 导演
+                // 渲染：年份和导演
                 let extraInfo = [];
                 if (response.year) extraInfo.push(response.year);
                 if (response.director) extraInfo.push(response.director);
@@ -136,34 +151,28 @@ function addLinks() {
                     link.parentNode.appendChild(extraSpan);
                 }
             } catch (error) {
-                // 通信断开时忽略
+                // 如果插件刚刚重启，静默忽略这个孤儿请求
             }
         })();
     });
 }
 
 // -------------------------------------------------------------
-// 页面动态变化监听：适配单页应用 (React/Vue)
+// 高频防漏：单页应用 (SPA) 动态追踪器
 // -------------------------------------------------------------
 let debounceTimer = null;
 const observer = new MutationObserver((mutations) => {
-    // 只要有节点被添加进 DOM 树
     const hasAddedNodes = mutations.some(mutation => mutation.addedNodes.length > 0);
-    
     if (hasAddedNodes) {
         if (debounceTimer) clearTimeout(debounceTimer);
-        // 防抖：等 300 毫秒页面安分下来后再批量执行
         debounceTimer = setTimeout(() => {
             addLinks();
         }, 300);
     }
 });
 
-// 监听整个 body 元素的变动
 observer.observe(document.body, { childList: true, subtree: true });
 
-// 兜底法：每隔两秒检查一次页面是否有新卡片，保证 SPA 页面切换语言或日期后绝对生效
+// SPA 兜底：每两秒自动扫描一次，保证切换语言或日期后功能绝不失效
 setInterval(addLinks, 2000);
-
-// 初次打开网页时立刻执行一次
 setTimeout(addLinks, 500);
