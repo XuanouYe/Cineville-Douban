@@ -34,7 +34,11 @@
     z-index: 100;
 }
 
-.letterboxd-cineville-btn {
+.letterboxd-cineville-btn,
+.imdb-cineville-btn {
+    border: 0;
+    font-family: inherit;
+    cursor: pointer;
     display: inline-block;
     margin-left: 8px; 
     padding: 2px 8px;
@@ -64,4 +68,9 @@
     font-weight: normal;
     position: relative;
     z-index: 100;
+}
+
+.imdb-cineville-btn {
+    background-color: #f5c518;
+    color: #000 !important;
 }

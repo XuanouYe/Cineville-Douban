@@ -1,4 +1,6 @@
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+function fetchMetadata(url) {
+    return fetch(url, {signal: AbortSignal.timeout(10000)});
+}
 
 async function handleMovieFetch(originalTitle) {
     let imdbTitle = "", year = "", director = "", ttId = "";
@@ -7,7 +9,6 @@ async function handleMovieFetch(originalTitle) {
     let doubanBlocked = false;
 
     try {
-        await sleep(Math.floor(Math.random() * 500) + 100);
 
         // ==========================================
         // 1. IMDb Suggest -> 拿 ttId + 英文名 + 年份
@@ -17,12 +18,12 @@ async function handleMovieFetch(originalTitle) {
         const imdbUrl = `https://v3.sg.media-imdb.com/suggestion/${firstLetter}/${formattedQuery}.json`;
 
         try {
-            const imdbRes = await fetch(imdbUrl);
+            const imdbRes = await fetchMetadata(imdbUrl);
             if (imdbRes.ok) {
                 const imdbData = await imdbRes.json();
                 if (imdbData.d && imdbData.d.length > 0) {
                     // 只要第一条带 tt 前缀的有效电影
-                    const validMovies = imdbData.d.filter(item => item.id && item.id.startsWith('tt'));
+                    const validMovies = imdbData.d.filter(item => /^tt\d+$/.test(item.id));
                     if (validMovies.length > 0) {
                         const firstMatch = validMovies[0];
                         imdbTitle = firstMatch.l || originalTitle;
@@ -39,9 +40,8 @@ async function handleMovieFetch(originalTitle) {
         // 2. IMDb 详情页 JSON-LD -> 精确抓取多位导演
         // ==========================================
         if (ttId) {
-            await sleep(200);
             try {
-                const detailRes = await fetch(`https://www.imdb.com/title/${ttId}/`);
+                const detailRes = await fetchMetadata(`https://www.imdb.com/title/${ttId}/`);
                 if (detailRes.ok) {
                     const html = await detailRes.text();
                     const ldMatch = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
@@ -65,12 +65,11 @@ async function handleMovieFetch(originalTitle) {
         const searchTarget = ttId || imdbTitle || originalTitle;
         const searchUrl = `https://www.douban.com/search?cat=1002&q=${encodeURIComponent(searchTarget)}`;
         
-        await sleep(300);
         try {
-            const searchRes = await fetch(searchUrl);
+            const searchRes = await fetchMetadata(searchUrl);
             
             // 拦截判定 1：直接返回了 403 或者是跳到了安全验证域名
-            if (searchRes.url.includes("sec.douban.com") || searchRes.status === 403 || searchRes.status === 404) {
+            if (searchRes.url.includes("sec.douban.com") || searchRes.status === 403 || !searchRes.ok) {
                 doubanBlocked = true;
             } else if (searchRes.ok) {
                 const html = await searchRes.text();
@@ -81,8 +80,7 @@ async function handleMovieFetch(originalTitle) {
                     const linkMatch = html.match(/url=https%3A%2F%2Fmovie\.douban\.com%2Fsubject%2F(\d+)%2F/);
                     if (linkMatch && linkMatch[1]) {
                         doubanId = linkMatch[1];
-                        await sleep(200);
-                        const detailRes = await fetch(`https://movie.douban.com/subject/${doubanId}/`);
+                        const detailRes = await fetchMetadata(`https://movie.douban.com/subject/${doubanId}/`);
                         if (detailRes.ok) {
                             const detailHtml = await detailRes.text();
                             const titleMatch = detailHtml.match(/<span property="v:itemreviewed">([^<]+)<\/span>/);
@@ -117,31 +115,44 @@ async function handleMovieFetch(originalTitle) {
     }
 }
 
-// 接收来自前台的抓取指令并接管缓存逻辑
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.type === "FETCH_INFO") {
-        // v2_cache 强制避开你之前存留的任何错误缓存数据
-        const cacheKey = "v2_cache_" + request.title;
-        
-        // 使用回调函数而不用 promise，防止 V3 在休眠时切断通道
-        chrome.storage.local.get([cacheKey], (res) => {
-            if (res && res[cacheKey]) {
-                // 如果找到正确的缓存数据，秒级返回
-                sendResponse(res[cacheKey]);
-            } else {
-                handleMovieFetch(request.title).then(result => {
-                    // 如果抓取成功，而且没有被豆瓣的验证码拦截，才把数据永久写进本地 Storage
-                    if (result && result.success && !result.doubanBlocked) {
-                        chrome.storage.local.set({ [cacheKey]: result });
-                    }
-                    sendResponse(result);
-                }).catch(() => {
-                    sendResponse({ success: false });
-                });
-            }
+// Share lookups across cards and tabs, including the asynchronous cache read.
+const pending = new Map();
+const queue = [];
+let active = 0;
+const concurrency = 3;
+
+function runQueue() {
+    while (active < concurrency && queue.length) {
+        const {title, resolve, reject} = queue.shift();
+        active++;
+        handleMovieFetch(title).then(resolve, reject).finally(() => {
+            active--;
+            runQueue();
         });
-        
-        // 这一句极其重要，告诉 Chrome 这是一个异步响应，别过早关闭通信端口
-        return true; 
     }
+}
+
+async function lookup(title) {
+    const key = 'v2_cache_' + title;
+    const stored = await chrome.storage.local.get(key);
+    if (stored[key]) return stored[key];
+    const result = await new Promise((resolve, reject) => {
+        queue.push({title, resolve, reject});
+        runQueue();
+    });
+    if (result.success && !result.doubanBlocked && (result.ttId || result.doubanLink)) {
+        await chrome.storage.local.set({[key]: result});
+    }
+    return result;
+}
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.type !== 'FETCH_INFO' || typeof request.title !== 'string') return;
+    const title = request.title.trim();
+    if (!title) return;
+    if (!pending.has(title)) {
+        pending.set(title, lookup(title).finally(() => pending.delete(title)));
+    }
+    pending.get(title).then(sendResponse, () => sendResponse({success: false}));
+    return true;
 });

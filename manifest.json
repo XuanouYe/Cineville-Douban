@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Cineville Douban Helper",
-  "version": "1.9",
+  "version": "1.10",
   "description": "通过 IMDb 自动翻译片名，在排片网站中显示豆瓣评分、中文名及导演信息，支持直达电影主页。",
   "permissions": [
     "storage"
